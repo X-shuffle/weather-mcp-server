@@ -15,7 +15,7 @@ func main() {
 	// 获取OpenWeatherMap API密钥
 	apiKey := os.Getenv("OPENWEATHER_API_KEY")
 	if apiKey == "" {
-		apiKey = "b8989edaccdc9b83fa6c4ef3915f5aef" // 使用提供的API key
+		log.Fatal("OPENWEATHER_API_KEY environment variable is required")
 	}
 
 	// 创建天气客户端
