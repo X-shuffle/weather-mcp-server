@@ -1,0 +1,149 @@
+package weather
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
+
+	"weather-mcp-server/internal/domain/weather"
+)
+
+// OpenWeatherClient OpenWeatherMap API客户端
+type OpenWeatherClient struct {
+	apiKey  string
+	client  *http.Client
+	baseURL string
+}
+
+// NewOpenWeatherClient 创建新的OpenWeatherMap客户端
+func NewOpenWeatherClient(apiKey string) *OpenWeatherClient {
+	return &OpenWeatherClient{
+		apiKey:  apiKey,
+		client:  &http.Client{Timeout: 10 * time.Second},
+		baseURL: "https://api.openweathermap.org/data/2.5",
+	}
+}
+
+// GetCurrentWeather 获取当前天气
+func (c *OpenWeatherClient) GetCurrentWeather(lat, lon float64) (*weather.Weather, error) {
+	params := url.Values{}
+	params.Add("lat", strconv.FormatFloat(lat, 'f', -1, 64))
+	params.Add("lon", strconv.FormatFloat(lon, 'f', -1, 64))
+	params.Add("appid", c.apiKey)
+	params.Add("units", "metric")
+	params.Add("lang", "zh_cn")
+
+	resp, err := c.client.Get(fmt.Sprintf("%s/weather?%s", c.baseURL, params.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch weather data: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+	}
+
+	var apiResp OpenWeatherResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return c.convertToWeather(&apiResp), nil
+}
+
+// GetWeatherByCity 根据城市名获取天气
+func (c *OpenWeatherClient) GetWeatherByCity(city string) (*weather.Weather, error) {
+	params := url.Values{}
+	params.Add("q", city)
+	params.Add("appid", c.apiKey)
+	params.Add("units", "metric")
+	params.Add("lang", "zh_cn")
+
+	resp, err := c.client.Get(fmt.Sprintf("%s/weather?%s", c.baseURL, params.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch weather data: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+	}
+
+	var apiResp OpenWeatherResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return c.convertToWeather(&apiResp), nil
+}
+
+// OpenWeatherResponse OpenWeatherMap API响应结构
+type OpenWeatherResponse struct {
+	Coord struct {
+		Lat float64 `json:"lat"`
+		Lon float64 `json:"lon"`
+	} `json:"coord"`
+	Weather []struct {
+		ID          int    `json:"id"`
+		Main        string `json:"main"`
+		Description string `json:"description"`
+		Icon        string `json:"icon"`
+	} `json:"weather"`
+	Base string `json:"base"`
+	Main struct {
+		Temp      float64 `json:"temp"`
+		FeelsLike float64 `json:"feels_like"`
+		Pressure  int     `json:"pressure"`
+		Humidity  int     `json:"humidity"`
+	} `json:"main"`
+	Wind struct {
+		Speed float64 `json:"speed"`
+		Deg   int     `json:"deg"`
+	} `json:"wind"`
+	Sys struct {
+		Country string `json:"country"`
+	} `json:"sys"`
+	Name string `json:"name"`
+	Dt   int64  `json:"dt"`
+}
+
+// convertToWeather 将API响应转换为领域模型
+func (c *OpenWeatherClient) convertToWeather(resp *OpenWeatherResponse) *weather.Weather {
+	var description, icon string
+	if len(resp.Weather) > 0 {
+		description = resp.Weather[0].Description
+		icon = resp.Weather[0].Icon
+	}
+
+	windDir := getWindDirection(resp.Wind.Deg)
+
+	return &weather.Weather{
+		Location: weather.Location{
+			City:    resp.Name,
+			Country: resp.Sys.Country,
+			Lat:     resp.Coord.Lat,
+			Lon:     resp.Coord.Lon,
+		},
+		Current: weather.CurrentWeather{
+			Temperature: resp.Main.Temp,
+			FeelsLike:   resp.Main.FeelsLike,
+			Humidity:    resp.Main.Humidity,
+			Pressure:    resp.Main.Pressure,
+			WindSpeed:   resp.Wind.Speed,
+			WindDir:     windDir,
+			Description: description,
+			Icon:        icon,
+		},
+		LastUpdated: time.Unix(resp.Dt, 0),
+	}
+}
+
+// getWindDirection 根据角度获取风向
+func getWindDirection(deg int) string {
+	directions := []string{"北", "东北", "东", "东南", "南", "西南", "西", "西北"}
+	index := (deg + 22) / 45 % 8
+	return directions[index]
+}

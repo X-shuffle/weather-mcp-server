@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "weather-mcp-server": {
+      "command": "./bin/weather-mcp-server",
+      "args": [],
+      "env": {
+        "OPENWEATHER_API_KEY": "your_openweather_api_key_here"
+      },
+      "cwd": "/path/to/weather-mcp-server"
+    }
+  }
+} 
