@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// 使用提供的API key
-	apiKey := "b8989edaccdc9b83fa6c4ef3915f5aef"
+	apiKey := "test"
 
 	// 创建天气客户端
 	weatherClient := weather.NewOpenWeatherClient(apiKey)
