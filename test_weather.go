@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// 使用提供的API key
-	apiKey := "test"
+	apiKey := "b8989edaccdc9b83fa6c4ef3915f5aef"
 
 	// 创建天气客户端
 	weatherClient := weather.NewOpenWeatherClient(apiKey)
@@ -114,10 +114,34 @@ func main() {
 		}
 	}
 
+	fmt.Println("\n" + strings.Repeat("=", 50) + "\n")
+
+	// 测试6: 小时级天气预报
+	fmt.Println("测试6: 小时级天气预报 (未来3小时)")
+	hourlyWeather, err := weatherService.GetHourlyWeatherByLocation("北京", 3)
+	if err != nil {
+		fmt.Printf("❌ 查询失败: %v\n", err)
+	} else {
+		result := weatherService.FormatHourlyWeatherResponse(hourlyWeather)
+		fmt.Println(result)
+	}
+
+	fmt.Println("\n测试6b: 小时级天气预报 (未来6小时, 坐标)")
+	hourlyWeather2, err := weatherService.GetHourlyWeatherByLocation("39.9600,116.3000", 6)
+	if err != nil {
+		fmt.Printf("❌ 查询失败: %v\n", err)
+	} else {
+		result := weatherService.FormatHourlyWeatherResponse(hourlyWeather2)
+		fmt.Println(result)
+	}
+
 	fmt.Println("\n=== 测试完成 ===")
 	fmt.Println("使用方法:")
 	fmt.Println("1. 直接运行: go run test_weather.go")
 	fmt.Println("2. 修改城市名或坐标来测试不同地区")
 	fmt.Println("3. 支持格式: 城市名(如'北京'或'Beijing') 或 坐标(如'39.9600,116.3000')")
 	fmt.Println("4. 支持中文和英文城市名查询")
+	fmt.Println("5. MCP工具已合并为 get_weather，支持实时天气和小时预报")
+	fmt.Println("   - 实时天气: {\"location\": \"北京\"}")
+	fmt.Println("   - 小时预报: {\"location\": \"北京\", \"hours\": 3}")
 }

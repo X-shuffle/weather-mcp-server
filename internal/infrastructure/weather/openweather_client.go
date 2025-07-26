@@ -120,6 +120,35 @@ type OpenWeatherResponse struct {
 	Dt   int64  `json:"dt"`
 }
 
+// ForecastAPIResponse OpenWeatherMap 预报API响应结构
+type ForecastAPIResponse struct {
+	City struct {
+		Name    string `json:"name"`
+		Country string `json:"country"`
+		Coord   struct {
+			Lat float64 `json:"lat"`
+			Lon float64 `json:"lon"`
+		} `json:"coord"`
+	} `json:"city"`
+	List []struct {
+		Dt   int64 `json:"dt"`
+		Main struct {
+			Temp      float64 `json:"temp"`
+			FeelsLike float64 `json:"feels_like"`
+			Pressure  int     `json:"pressure"`
+			Humidity  int     `json:"humidity"`
+		} `json:"main"`
+		Weather []struct {
+			Description string `json:"description"`
+			Icon        string `json:"icon"`
+		} `json:"weather"`
+		Wind struct {
+			Speed float64 `json:"speed"`
+			Deg   int     `json:"deg"`
+		} `json:"wind"`
+	} `json:"list"`
+}
+
 // convertToWeather 将API响应转换为领域模型
 func (c *OpenWeatherClient) convertToWeather(resp *OpenWeatherResponse) *weather.Weather {
 	var description, icon string
@@ -149,6 +178,132 @@ func (c *OpenWeatherClient) convertToWeather(resp *OpenWeatherResponse) *weather
 		},
 		LastUpdated: time.Unix(resp.Dt, 0),
 	}
+}
+
+// GetHourlyWeatherByCoords 获取未来小时天气预报（经纬度）
+func (c *OpenWeatherClient) GetHourlyWeatherByCoords(lat, lon float64, hours int) (*weather.HourlyWeatherResult, error) {
+	params := url.Values{}
+	params.Add("lat", strconv.FormatFloat(lat, 'f', -1, 64))
+	params.Add("lon", strconv.FormatFloat(lon, 'f', -1, 64))
+	params.Add("appid", c.apiKey)
+	params.Add("units", "metric")
+	params.Add("lang", "zh_cn")
+
+	resp, err := c.client.Get(fmt.Sprintf("%s/forecast?%s", c.baseURL, params.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch forecast data: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+	}
+
+	var apiResp ForecastAPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode forecast response: %w", err)
+	}
+
+	hourly := make([]weather.HourlyWeather, 0, hours)
+	for i, item := range apiResp.List {
+		if i >= hours {
+			break
+		}
+		var desc, icon string
+		if len(item.Weather) > 0 {
+			desc = item.Weather[0].Description
+			icon = item.Weather[0].Icon
+		}
+		windDir := getWindDirection(item.Wind.Deg)
+		hourly = append(hourly, weather.HourlyWeather{
+			Date:        time.Unix(item.Dt, 0),
+			Temperature: item.Main.Temp,
+			FeelsLike:   item.Main.FeelsLike,
+			Humidity:    item.Main.Humidity,
+			Pressure:    item.Main.Pressure,
+			WindSpeed:   item.Wind.Speed,
+			WindDir:     windDir,
+			Description: desc,
+			Icon:        icon,
+		})
+	}
+
+	return &weather.HourlyWeatherResult{
+		Location: weather.Location{
+			City:    apiResp.City.Name,
+			Country: apiResp.City.Country,
+			Lat:     apiResp.City.Coord.Lat,
+			Lon:     apiResp.City.Coord.Lon,
+		},
+		Hourly:      hourly,
+		LastUpdated: time.Now(),
+	}, nil
+}
+
+// GetHourlyWeatherByCity 获取未来小时天气预报（城市名）
+func (c *OpenWeatherClient) GetHourlyWeatherByCity(city string, hours int) (*weather.HourlyWeatherResult, error) {
+	// 检查是否为中文城市名，如果是则转换为英文
+	queryCity := city
+	if c.cityMapping.IsChineseCity(city) {
+		if englishName, exists := c.cityMapping.GetEnglishName(city); exists {
+			queryCity = englishName
+		}
+	}
+	params := url.Values{}
+	params.Add("q", queryCity)
+	params.Add("appid", c.apiKey)
+	params.Add("units", "metric")
+	params.Add("lang", "zh_cn")
+
+	resp, err := c.client.Get(fmt.Sprintf("%s/forecast?%s", c.baseURL, params.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch forecast data: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+	}
+
+	var apiResp ForecastAPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode forecast response: %w", err)
+	}
+
+	hourly := make([]weather.HourlyWeather, 0, hours)
+	for i, item := range apiResp.List {
+		if i >= hours {
+			break
+		}
+		var desc, icon string
+		if len(item.Weather) > 0 {
+			desc = item.Weather[0].Description
+			icon = item.Weather[0].Icon
+		}
+		windDir := getWindDirection(item.Wind.Deg)
+		hourly = append(hourly, weather.HourlyWeather{
+			Date:        time.Unix(item.Dt, 0),
+			Temperature: item.Main.Temp,
+			FeelsLike:   item.Main.FeelsLike,
+			Humidity:    item.Main.Humidity,
+			Pressure:    item.Main.Pressure,
+			WindSpeed:   item.Wind.Speed,
+			WindDir:     windDir,
+			Description: desc,
+			Icon:        icon,
+		})
+	}
+
+	return &weather.HourlyWeatherResult{
+		Location: weather.Location{
+			City:    apiResp.City.Name,
+			Country: apiResp.City.Country,
+			Lat:     apiResp.City.Coord.Lat,
+			Lon:     apiResp.City.Coord.Lon,
+		},
+		Hourly:      hourly,
+		LastUpdated: time.Now(),
+	}, nil
 }
 
 // getWindDirection 根据角度获取风向
