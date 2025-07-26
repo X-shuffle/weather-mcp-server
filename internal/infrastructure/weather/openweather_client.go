@@ -181,6 +181,8 @@ func (c *OpenWeatherClient) convertToWeather(resp *OpenWeatherResponse) *weather
 }
 
 // GetHourlyWeatherByCoords 获取未来小时天气预报（经纬度）
+// 注意：OpenWeatherMap 的 /forecast API 返回的是3小时间隔的数据
+// 例如：请求3小时会返回 [当前+3h, 当前+6h, 当前+9h] 的数据
 func (c *OpenWeatherClient) GetHourlyWeatherByCoords(lat, lon float64, hours int) (*weather.HourlyWeatherResult, error) {
 	params := url.Values{}
 	params.Add("lat", strconv.FormatFloat(lat, 'f', -1, 64))
@@ -204,11 +206,16 @@ func (c *OpenWeatherClient) GetHourlyWeatherByCoords(lat, lon float64, hours int
 		return nil, fmt.Errorf("failed to decode forecast response: %w", err)
 	}
 
-	hourly := make([]weather.HourlyWeather, 0, hours)
-	for i, item := range apiResp.List {
-		if i >= hours {
-			break
-		}
+	// 计算需要多少个3小时间隔的数据点
+	// 例如：请求6小时 = 需要2个数据点 (6/3=2)
+	dataPoints := (hours + 2) / 3 // 向上取整
+	if dataPoints > len(apiResp.List) {
+		dataPoints = len(apiResp.List)
+	}
+
+	hourly := make([]weather.HourlyWeather, 0, dataPoints)
+	for i := 0; i < dataPoints; i++ {
+		item := apiResp.List[i]
 		var desc, icon string
 		if len(item.Weather) > 0 {
 			desc = item.Weather[0].Description
@@ -241,6 +248,8 @@ func (c *OpenWeatherClient) GetHourlyWeatherByCoords(lat, lon float64, hours int
 }
 
 // GetHourlyWeatherByCity 获取未来小时天气预报（城市名）
+// 注意：OpenWeatherMap 的 /forecast API 返回的是3小时间隔的数据
+// 例如：请求3小时会返回 [当前+3h, 当前+6h, 当前+9h] 的数据
 func (c *OpenWeatherClient) GetHourlyWeatherByCity(city string, hours int) (*weather.HourlyWeatherResult, error) {
 	// 检查是否为中文城市名，如果是则转换为英文
 	queryCity := city
@@ -270,11 +279,16 @@ func (c *OpenWeatherClient) GetHourlyWeatherByCity(city string, hours int) (*wea
 		return nil, fmt.Errorf("failed to decode forecast response: %w", err)
 	}
 
-	hourly := make([]weather.HourlyWeather, 0, hours)
-	for i, item := range apiResp.List {
-		if i >= hours {
-			break
-		}
+	// 计算需要多少个3小时间隔的数据点
+	// 例如：请求6小时 = 需要2个数据点 (6/3=2)
+	dataPoints := (hours + 2) / 3 // 向上取整
+	if dataPoints > len(apiResp.List) {
+		dataPoints = len(apiResp.List)
+	}
+
+	hourly := make([]weather.HourlyWeather, 0, dataPoints)
+	for i := 0; i < dataPoints; i++ {
+		item := apiResp.List[i]
 		var desc, icon string
 		if len(item.Weather) > 0 {
 			desc = item.Weather[0].Description

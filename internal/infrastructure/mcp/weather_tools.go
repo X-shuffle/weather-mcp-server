@@ -29,7 +29,7 @@ func (wt *WeatherTools) GetTools() []server.ServerTool {
 		{
 			Tool: mcp.Tool{
 				Name:        "get_weather",
-				Description: "获取指定位置的天气信息，支持实时天气和未来小时预报",
+				Description: "获取指定位置的天气信息，支持实时天气和未来小时预报（注意：预报数据为3小时间隔）",
 				InputSchema: mcp.ToolInputSchema{
 					Type: "object",
 					Properties: map[string]any{
