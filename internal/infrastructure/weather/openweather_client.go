@@ -13,17 +13,19 @@ import (
 
 // OpenWeatherClient OpenWeatherMap API客户端
 type OpenWeatherClient struct {
-	apiKey  string
-	client  *http.Client
-	baseURL string
+	apiKey      string
+	client      *http.Client
+	baseURL     string
+	cityMapping *CityMapping
 }
 
 // NewOpenWeatherClient 创建新的OpenWeatherMap客户端
 func NewOpenWeatherClient(apiKey string) *OpenWeatherClient {
 	return &OpenWeatherClient{
-		apiKey:  apiKey,
-		client:  &http.Client{Timeout: 10 * time.Second},
-		baseURL: "https://api.openweathermap.org/data/2.5",
+		apiKey:      apiKey,
+		client:      &http.Client{Timeout: 10 * time.Second},
+		baseURL:     "https://api.openweathermap.org/data/2.5",
+		cityMapping: NewCityMapping(),
 	}
 }
 
@@ -56,8 +58,16 @@ func (c *OpenWeatherClient) GetCurrentWeather(lat, lon float64) (*weather.Weathe
 
 // GetWeatherByCity 根据城市名获取天气
 func (c *OpenWeatherClient) GetWeatherByCity(city string) (*weather.Weather, error) {
+	// 检查是否为中文城市名，如果是则转换为英文
+	queryCity := city
+	if c.cityMapping.IsChineseCity(city) {
+		if englishName, exists := c.cityMapping.GetEnglishName(city); exists {
+			queryCity = englishName
+		}
+	}
+
 	params := url.Values{}
-	params.Add("q", city)
+	params.Add("q", queryCity)
 	params.Add("appid", c.apiKey)
 	params.Add("units", "metric")
 	params.Add("lang", "zh_cn")
